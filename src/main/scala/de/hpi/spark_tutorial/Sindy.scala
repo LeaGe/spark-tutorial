@@ -17,28 +17,22 @@ object Sindy {
           .option("inferSchema", "false")
           .csv(input)
 
-        //table.show()
-
         val headers = table.columns.map(name => List(name))
-
         val cells = table.flatMap(row => row.toSeq.asInstanceOf[Seq[String]].zip(headers))
-        //cells.show()
-
-        val temp = cells.rdd.reduceByKey((a, b) => (a ++ b).distinct)
-        //temp.toDF().show(false)
-
-        temp
+        cells.rdd.reduceByKey((a, b) => (a ++ b).distinct)
       })
       .reduce((a, b) => a.union(b))
       .reduceByKey((a, b) => (a ++ b).distinct)
       .map(_._2) //same as (a => a._2)
       .flatMap(attributeSet => {
-        val allColumns = attributeSet
-        attributeSet.map(column => (column,allColumns.filterNot(_==column))) //a => a==column
+        attributeSet.map(column => (column, attributeSet.filterNot(_==column))) //a => a==column
       })
       .reduceByKey((a,b) => a.intersect(b))
-      .filter(line => line._2 != List.empty)
-
-      .toDF().show(false)
+      .flatMap(a => a._2.map(b => (a._1, b)))
+      .aggregateByKey(List().asInstanceOf[List[String]])(_ :+ _, _ ++ _)
+      .sortByKey(numPartitions = 1)
+      .map(a => s"${a._1} < ${a._2.mkString(", ")}")
+      .collect()
+      .foreach(println(_))
   }
 }
