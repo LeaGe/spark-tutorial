@@ -21,13 +21,30 @@ object SimpleSpark extends App {
 
   override def main(args: Array[String]): Unit = {
 
+    val arglist = args.toList
+    type OptionMap = Map[Symbol, Any]
+
+    def nextOption(map : OptionMap, list: List[String]) : OptionMap = {
+      def isSwitch(s : String) = (s(0) == '-')
+      list match {
+        case Nil => map
+        case "--path" :: value :: tail =>
+          nextOption(map ++ Map('path -> value.toString), tail)
+        case "--cores" :: value :: tail =>
+          nextOption(map ++ Map('cores -> value.toInt), tail)
+        case option :: tail => println("Unknown option "+option)
+          sys.exit(1)
+      }
+    }
+    val options = nextOption(Map(),arglist)
+
+    val path = options.getOrElse('path, "./TPCH")
+    val cores = options.getOrElse('cores, 4)
+
+
     // Turn off logging
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
-
-    //------------------------------------------------------------------------------------------------------------------
-    // Lamda basics (for Scala)
-    //------------------------------------------------------------------------------------------------------------------
 
 
     //------------------------------------------------------------------------------------------------------------------
@@ -38,7 +55,7 @@ object SimpleSpark extends App {
     val sparkBuilder = SparkSession
       .builder()
       .appName("SparkTutorial")
-      .master("local[4]") // local, with 4 worker cores
+      .master(s"local[$cores]") // local, with 4 worker cores
     val spark = sparkBuilder.getOrCreate()
 
     // Set the default number of shuffle partitions (default is 200, which is too high for local deployment)
@@ -60,7 +77,7 @@ object SimpleSpark extends App {
     //------------------------------------------------------------------------------------------------------------------
 
     val inputs = List("region", "nation", "supplier", "customer", "part", "lineitem", "orders")
-      .map(name => s"data/TPCH/tpch_$name.csv")
+      .map(name => s"$path/tpch_$name.csv")
 
     time {Sindy.discoverINDs(inputs, spark)}
   }
